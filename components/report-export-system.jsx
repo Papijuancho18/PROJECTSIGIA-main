@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, FileText, Download } from "lucide-react";
+import { exportReport, downloadBlob } from "@/utils/report-export"; // Importar funciones de exportación
 
 export default function ReportExportSystem({ reportData, templates = [], onExportComplete }) {
   const [selectedFormat, setSelectedFormat] = useState("pdf");
@@ -17,11 +18,15 @@ export default function ReportExportSystem({ reportData, templates = [], onExpor
   const [error, setError] = useState(null);
   const [exportComplete, setExportComplete] = useState(false);
 
+  const handleProgress = (p, msg) => {
+    setProgress(p);
+    setStatusMessage(msg);
+  };
+
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      setProgress(10);
-      setStatusMessage("Generando gráfico y preparando datos...");
+      handleProgress(10, "Iniciando exportación local...");
       setError(null);
       setExportComplete(false);
 
@@ -29,39 +34,25 @@ export default function ReportExportSystem({ reportData, templates = [], onExpor
       if (!reportData.sections || reportData.sections.length === 0)
         throw new Error("El reporte no contiene secciones para exportar");
 
-      const response = await fetch(`/api/export-report/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: reportData,
-          format: selectedFormat,
-          template: selectedTemplate,
-        }),
-      });
+      // Usar la función de exportación local
+      const { blob, filename } = await exportReport(
+        reportData,
+        selectedFormat,
+        undefined, // Usar la plantilla por defecto por ahora
+        handleProgress,
+      );
 
-      setProgress(70);
-      setStatusMessage("Procesando respuesta del servidor...");
-
-      if (!response.ok) {
-        throw new Error(`Error al generar reporte (${response.status})`);
-      }
-
-      const blob = await response.blob();
-      const filename = `reporte_${Date.now()}.${selectedFormat === "word" ? "docx" : selectedFormat}`;
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      handleProgress(95, `Preparando descarga: ${filename}`);
+      
+      // Descargar el archivo generado
+      downloadBlob(blob, filename);
 
       setProgress(100);
       setStatusMessage(`Exportación completada: ${filename}`);
       setExportComplete(true);
       if (onExportComplete) onExportComplete(selectedFormat);
     } catch (err) {
-      console.error("Error en la exportación:", err);
+      console.error("Error en la exportación local:", err);
       setError(`Error: ${err.message || "Error desconocido"}`);
     } finally {
       setIsExporting(false);
@@ -89,8 +80,8 @@ export default function ReportExportSystem({ reportData, templates = [], onExpor
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="word">Word</SelectItem>
-                  <SelectItem value="excel">Excel</SelectItem>
+                  <SelectItem value="word">Word (No implementado)</SelectItem>
+                  <SelectItem value="excel">Excel (No implementado)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

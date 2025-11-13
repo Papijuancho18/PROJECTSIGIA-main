@@ -33,6 +33,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "ai": "^3.4.32",
+    "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "docx": "^8.5.0",

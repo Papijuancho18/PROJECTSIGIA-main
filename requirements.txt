@@ -19,3 +19,16 @@ six==1.17.0
 sqlparse==0.5.3
 typing_extensions==4.15.0
 tzdata==2025.2
+
+djangorestframework
+
+djangorestframework-simplejwt
+
+django-cors-headers
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+channels
+psycopg2-binary
+
+openpyxl

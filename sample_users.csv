@@ -1,0 +1,11 @@
+user_id,name,email,role
+1,Alice Smith,alice.smith@example.com,admin
+2,Bob Johnson,bob.johnson@example.com,staff
+3,Charlie Brown,charlie.brown@example.com,staff
+4,David Lee,david.lee@example.com,staff
+5,Eve Wilson,eve.wilson@example.com,admin
+6,Frank Miller,frank.miller@example.com,staff
+7,Grace Davis,grace.davis@example.com,staff
+8,Henry Moore,henry.moore@example.com,staff
+9,Ivy Taylor,ivy.taylor@example.com,staff
+10,Jack White,jack.white@example.com,admin

@@ -264,6 +264,45 @@ async function renderChart(pdf: jsPDF, chartData: ChartData, y: number): Promise
   }
 }
 
+// Helper function to parse standard Markdown table syntax
+function parseMarkdownTable(markdown: string): TableData | null {
+  const lines = markdown.split("\n").filter((line) => line.trim());
+  if (lines.length < 2) return null;
+
+  // Check for separator line (e.g., |---|---|)
+  const separatorLineIndex = lines.findIndex((line) => /\|[\s-]+\|/.test(line));
+  if (separatorLineIndex === -1) return null;
+
+  const headerLine = lines[0];
+  const headers = headerLine
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter((cell) => cell.length > 0);
+
+  if (headers.length === 0) return null;
+
+  const dataLines = lines.slice(separatorLineIndex + 1);
+  const rows = dataLines.map((line) =>
+    line
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter((cell) => cell.length > 0)
+  );
+
+  // Basic validation: ensure consistent number of columns
+  if (rows.some(row => row.length !== headers.length)) {
+    console.warn("Markdown table has inconsistent column count, skipping:", markdown);
+    return null;
+  }
+
+  return {
+    id: `markdown-table-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    title: "Tabla", // Default title for parsed markdown tables
+    headers: headers,
+    rows: rows,
+  };
+}
+
 // Función principal de exportación
 async function exportToPDF(
   reportData: ReportData,
@@ -318,7 +357,14 @@ async function exportToPDF(
     };
 
     const CHART_REGEX = /```chart\s*(\{[\s\S]*?\})\s*```/g;
-    const TABLE_REGEX = /```table\s*(\{[\s\S]*?\})\s*```/g;
+    const JSON_TABLE_REGEX = /```table\s*(\{[\s\S]*?\})\s*```/g;
+    // Regex para tablas Markdown estándar
+    // Captura:
+    // 1. Línea de encabezado (que contiene al menos un '|')
+    // 2. Línea separadora (que contiene al menos un '|' y '---')
+    // 3. Múltiples líneas de datos (que contienen al menos un '|')
+    const MARKDOWN_TABLE_REGEX = /(\|.*\|\r?\n\|(?:[\s-]+\|)+\r?\n(?:\|.*\|\r?\n)*)/g;
+
 
     for (const section of reportData.sections) {
       checkPageSpace(20);
@@ -350,28 +396,58 @@ async function exportToPDF(
           lastIndex = CHART_REGEX.lastIndex;
         }
 
-        // Process tables (after charts, or if no charts)
+        // Process JSON tables (after charts)
         currentContent = currentContent.substring(lastIndex); // Remaining content after charts
-        lastIndex = 0; // Reset lastIndex for table processing
+        lastIndex = 0; // Reset lastIndex for JSON table processing
 
-        while ((match = TABLE_REGEX.exec(currentContent)) !== null) {
-          // Render text before the table
+        while ((match = JSON_TABLE_REGEX.exec(currentContent)) !== null) {
+          // Render text before the JSON table
           if (match.index > lastIndex) {
             checkPageSpace(20);
             yPosition = renderText(currentContent.substring(lastIndex, match.index), margin, yPosition, 11, "normal");
           }
 
-          // Render table
+          // Render JSON table
           try {
             const tableJson = JSON.parse(match[1]);
             checkPageSpace(50);
             yPosition = renderTable(pdf, tableJson, yPosition);
           } catch (e) {
-            console.error("Error parsing table JSON:", e);
+            console.error("Error parsing JSON table:", e);
             checkPageSpace(20);
-            yPosition = renderText(`[Error al renderizar tabla: ${e.message}]`, margin, yPosition, 10, "italic");
+            yPosition = renderText(`[Error al renderizar tabla JSON: ${e.message}]`, margin, yPosition, 10, "italic");
           }
-          lastIndex = TABLE_REGEX.lastIndex;
+          lastIndex = JSON_TABLE_REGEX.lastIndex;
+        }
+
+        // Process standard Markdown tables (after JSON tables)
+        currentContent = currentContent.substring(lastIndex); // Remaining content after JSON tables
+        lastIndex = 0; // Reset lastIndex for Markdown table processing
+
+        while ((match = MARKDOWN_TABLE_REGEX.exec(currentContent)) !== null) {
+          // Render text before the Markdown table
+          if (match.index > lastIndex) {
+            checkPageSpace(20);
+            yPosition = renderText(currentContent.substring(lastIndex, match.index), margin, yPosition, 11, "normal");
+          }
+
+          // Render Markdown table
+          try {
+            const tableData = parseMarkdownTable(match[1]);
+            if (tableData) {
+              checkPageSpace(50);
+              yPosition = renderTable(pdf, tableData, yPosition);
+            } else {
+              // If parsing fails, render as plain text
+              checkPageSpace(20);
+              yPosition = renderText(match[1], margin, yPosition, 11, "normal");
+            }
+          } catch (e) {
+            console.error("Error rendering Markdown table:", e);
+            checkPageSpace(20);
+            yPosition = renderText(`[Error al renderizar tabla Markdown: ${e.message}]`, margin, yPosition, 10, "italic");
+          }
+          lastIndex = MARKDOWN_TABLE_REGEX.lastIndex;
         }
 
         // Render any remaining text after all charts and tables

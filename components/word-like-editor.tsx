@@ -13,7 +13,7 @@ import { ChartCreationModal } from "./chart-creation-modal"
 import EnhancedChartPreview from "./enhanced-chart-preview"
 import { VisualChartEditorInline } from "./visual-chart-editor-inline"
 // Remover la importación estática de VisualTableEditorInline
-// import { VisualTableEditorInline } from "./visual-table-editor-inline"
+
 
 interface WordLikeEditorProps {
   initialContent?: string
@@ -93,21 +93,27 @@ export function WordLikeEditor({
 
   // Insertar tabla
   const insertTable = (rows: number, cols: number) => {
-    const headers = Array.from({ length: cols }, (_, i) => `Columna ${i + 1}`).join(" | ")
-    const separator = Array.from({ length: cols }, () => "---").join(" | ")
+    const tableId = `table-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    const headers = Array.from({ length: cols }, (_, i) => `Columna ${i + 1}`)
     const dataRows = Array.from({ length: rows }, (_, i) =>
-      Array.from({ length: cols }, (_, j) => `Dato ${i + 1},${j + 1}`).join(" | "),
+      Array.from({ length: cols }, (_, j) => `Dato ${i + 1},${j + 1}`),
     )
 
-    const tableMarkdown = `
+    const tableData = {
+      id: tableId,
+      title: `Nueva Tabla`,
+      headers: headers,
+      rows: dataRows,
+    }
 
-| ${headers} |
-| ${separator} |
-${dataRows.map((row) => `| ${row} |`).join("\n")}
+    const tableBlock = `
+
+\`\`\`table
+${JSON.stringify(tableData, null, 2)}
+\`\`\`
 
 `
-
-    insertFormatting(tableMarkdown)
+    insertFormatting(tableBlock)
     setShowTableModal(false)
   }
 
@@ -167,72 +173,6 @@ ${JSON.stringify(newChartData, null, 2)}
     }
   }
 
-  // Procesar tabla markdown
-  const parseMarkdownTable = (content: string) => {
-    const lines = content.split("\n").filter((line) => line.trim())
-    if (lines.length < 2) return null
-
-    // Primera línea son los headers
-    const headerLine = lines[0]
-    const headers = headerLine
-      .split("|")
-      .filter((cell) => cell.trim() !== "")
-      .map((cell) => cell.trim())
-
-    // Tercera línea en adelante son los datos (saltamos la línea de separación)
-    const dataLines = lines.slice(2)
-    const rows = dataLines.map((line) =>
-      line
-        .split("|")
-        .filter((cell) => cell.trim() !== "")
-        .map((cell) => cell.trim()),
-    )
-
-    return { headers, rows }
-  }
-
-  // Actualizar tabla existente
-  const updateTable = (blockIndex: number, newTableData: any) => {
-    console.log("📋 WordLikeEditor: Updating table at index", blockIndex, "with data:", newTableData)
-
-    const blocks = processContentForPreview(content)
-    const tableBlocks = blocks.filter((block) => block.type === "table")
-
-    if (blockIndex < tableBlocks.length) {
-      // Generar nuevo markdown de tabla
-      const headers = newTableData.headers.join(" | ")
-      const separator = newTableData.headers.map(() => "---").join(" | ")
-      const dataRows = newTableData.rows.map((row) => row.join(" | "))
-
-      const newTableMarkdown = `| ${headers} |
-| ${separator} |
-${dataRows.map((row) => `| ${row} |`).join("\n")}`
-
-      // Encontrar y reemplazar la tabla en el contenido
-      const tableRegex = /\|(.+)\|[\r\n]+\|([\s-:|]+)\|[\r\n]+((?:\|.+\|[\r\n]*)+)/g
-      let tableCount = 0
-      let foundMatch = false
-
-      const newContent = content.replace(tableRegex, (fullMatch) => {
-        if (tableCount === blockIndex) {
-          foundMatch = true
-          tableCount++
-          console.log("📋 WordLikeEditor: Replacing table block", blockIndex)
-          return newTableMarkdown
-        }
-        tableCount++
-        return fullMatch
-      })
-
-      if (foundMatch) {
-        console.log("📋 WordLikeEditor: Table updated successfully")
-        handleContentChange(newContent)
-      } else {
-        console.warn("📋 WordLikeEditor: Table block not found for index", blockIndex)
-      }
-    }
-  }
-
   // Procesar contenido para vista previa
   const processContentForPreview = (content: string) => {
     const blocks = []
@@ -260,6 +200,19 @@ ${dataRows.map((row) => `| ${row} |`).join("\n")}`
                 content: "Error al procesar el gráfico",
               })
             }
+          } else if (codeBlockType === "table") {
+            try {
+              const tableData = JSON.parse(currentBlock)
+              blocks.push({
+                type: "table",
+                content: tableData,
+              })
+            } catch (error) {
+              blocks.push({
+                type: "text",
+                content: "Error al procesar la tabla",
+              })
+            }
           } else {
             blocks.push({
               type: "code",
@@ -284,34 +237,6 @@ ${dataRows.map((row) => `| ${row} |`).join("\n")}`
         }
       } else if (inCodeBlock) {
         currentBlock += line + "\n"
-      } else if (line.includes("|") && !inCodeBlock) {
-        // Detectar inicio de tabla
-        if (currentBlock.trim()) {
-          blocks.push({
-            type: "text",
-            content: currentBlock.trim(),
-          })
-        }
-
-        // Procesar tabla
-        let tableContent = line + "\n"
-        let j = i + 1
-        while (j < lines.length && lines[j].includes("|")) {
-          tableContent += lines[j] + "\n"
-          j++
-        }
-
-        const tableData = parseMarkdownTable(tableContent)
-        if (tableData) {
-          blocks.push({
-            type: "table",
-            content: tableData,
-          })
-        }
-
-        i = j - 1
-        currentBlock = ""
-        continue
       } else {
         currentBlock += line + "\n"
       }
@@ -326,6 +251,42 @@ ${dataRows.map((row) => `| ${row} |`).join("\n")}`
     }
 
     return blocks
+  }
+
+  // Actualizar tabla existente
+  const updateTable = (blockIndex: number, newTableData: any) => {
+    console.log("📋 WordLikeEditor: Updating table at index", blockIndex, "with data:", newTableData)
+
+    const blocks = processContentForPreview(content)
+    const tableBlocks = blocks.filter((block) => block.type === "table")
+
+    if (blockIndex < tableBlocks.length) {
+      // Encontrar el bloque de tabla en el contenido original y reemplazarlo
+      const tableRegex = /```table\s+([\s\S]+?)\s+```/g
+      let match
+      let tableCount = 0
+      let foundMatch = false
+
+      const newContent = content.replace(tableRegex, (fullMatch, tableJson) => {
+        if (tableCount === blockIndex) {
+          foundMatch = true
+          tableCount++
+          console.log("📋 WordLikeEditor: Replacing table block", blockIndex)
+          return `\`\`\`table
+${JSON.stringify(newTableData, null, 2)}
+\`\`\``
+        }
+        tableCount++
+        return fullMatch
+      })
+
+      if (foundMatch) {
+        console.log("📋 WordLikeEditor: Table updated successfully")
+        handleContentChange(newContent)
+      } else {
+        console.warn("📋 WordLikeEditor: Table block not found for index", blockIndex)
+      }
+    }
   }
 
   // Renderizar bloque de contenido

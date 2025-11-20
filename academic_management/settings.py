@@ -75,10 +75,15 @@ WSGI_APPLICATION = 'academic_management.wsgi.application'
 ASGI_APPLICATION = 'academic_management.asgi.application'
 
 # Database
+# Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'sigiadb',
+        'USER': 'postgres',
+        'PASSWORD': '1001789192',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
